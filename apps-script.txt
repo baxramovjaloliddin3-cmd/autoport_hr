@@ -1,0 +1,73 @@
+/*** ============================================================
+ *   AUTOPORT URGANCH — Nomzod arizalari MARKAZIY collector (v2)
+ *   Barcha arizalar (web forma + Telegram bot) bitta Google Sheetga tushadi.
+ *
+ *   O'RNATISH:
+ *   1) Google Sheets oching (masalan "Autoport Nomzodlar").
+ *   2) Extensions -> Apps Script -> bu kodni to'liq joylang -> saqlang.
+ *   3) Deploy -> New deployment -> "Web app" (Execute as: Me, Access: Anyone).
+ *   4) "Web app URL" ni nusxalang va formaning WEBHOOK_URL / ilova sozlamasiga qo'ying.
+ *   Eslatma: ustunlar o'zgargani uchun, eski varaqni tozalab yangidan yaratgani ma'qul
+ *   (yoki 1-qatordagi sarlavhalarni o'chirsangiz, skript qaytadan yaratadi).
+ *   ============================================================ */
+
+var SHEET_NAME = 'Nomzodlar';
+var HEADERS = ['Sana','ID','F.I.Sh','Telefon','Yosh','Manzil','Lavozim','Ma\'lumot',
+               'Tajriba','Boshlash','Kutilgan oylik','Nega bizda','Tavsiya','Manba','Javoblar'];
+
+function getSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) { sh = ss.insertSheet(SHEET_NAME); }
+  if (sh.getLastRow() === 0) { sh.appendRow(HEADERS); }
+  return sh;
+}
+
+function doPost(e) {
+  try {
+    var d = JSON.parse(e.postData.contents);
+    var sh = getSheet_();
+    var answers = d.answers
+      ? Object.keys(d.answers).map(function (k) { return k + ': ' + d.answers[k]; }).join('  |  ')
+      : '';
+    sh.appendRow([
+      new Date(),
+      d.id || '',
+      d.name || '',
+      d.phone || '',
+      d.age || '',
+      d.address || '',
+      d.vacancy || d.vacId || '',
+      d.education || '',
+      d.experience || '',
+      d.availability || '',
+      d.expectedSalary || '',
+      d.why || d.note || '',
+      d.referral || '',
+      d.source || '',
+      answers
+    ]);
+    return json_({ ok: true });
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  }
+}
+
+function doGet(e) {
+  var sh = getSheet_();
+  var values = sh.getDataRange().getValues();
+  var headers = values.shift() || [];
+  var rows = values.map(function (r) { var o = {}; headers.forEach(function (h, i) { o[h] = r[i]; }); return o; });
+  var payload = { ok: true, count: rows.length, rows: rows };
+  // JSONP qo'llab-quvvatlash (HR sayt sinxronlashi uchun): ?callback=fn
+  var cb = e && e.parameter && e.parameter.callback;
+  if (cb) {
+    return ContentService.createTextOutput(cb + '(' + JSON.stringify(payload) + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return json_(payload);
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
